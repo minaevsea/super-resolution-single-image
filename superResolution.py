@@ -8,3 +8,5 @@ cv.imshow("LENA", img)
 cv.waitKey(0)
 cv.destroyAllWindows()
 print("Image was closed!")
+
+print("Hi to GitHub!!!")
