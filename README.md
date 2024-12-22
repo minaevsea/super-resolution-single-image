@@ -1,2 +1,2 @@
-# super-resolution-single-image
+# Метод Super Resolution из одного изображения
 Super Resolution from a Single Image
