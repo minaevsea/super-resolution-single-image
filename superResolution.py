@@ -1,8 +1,10 @@
-#version 23.12.2024
+#version 07.01.2025
 
 import cv2 as cv        #Импорт библиотеки OpenCV
 import numpy as np      #Импорт библиотеки Numpy
 import sys
+from tkinter import Tk  #Импорт библиотеки Tkinter для отображения диалогового окна для выбора изображения
+from tkinter.filedialog import askopenfilename
 
 dct = {}        #Словарь образцов изображений
 key_size = 3    #Размер ключа в словаре (3х3)
@@ -14,10 +16,21 @@ def dict_build(size, image, i, j, d):
     ind = 0
     for m in range(size):
         for n in range(size):
-            tpl[ind] = image[d * i + m, d * j + n]
+            tpl[ind] = int(image[d * i + m][ d * j + n])
             ind += 1
     tpl = tuple(tpl)
     return tpl
+
+#Составление словаря для двух масштабов
+def dict_build_two_scales(height, width, image1, image2, key_size, val_size):
+    for i in range(int(height) - 2):
+        for j in range(int(width) - 2):
+            #Рассчет ключа словаря 3х3 
+            key_3x3 = dict_build(key_size, image2, i, j, 1)
+            #Рассчет значения словаря 6х6
+            value_6x6 = dict_build(val_size, image1, i, j, 2)
+            #Занесение в словарь
+            dct[key_3x3] = value_6x6
 
 #Получение ключа по значению в словаре
 def get_key(dictionary, value):
@@ -29,13 +42,15 @@ def get_key(dictionary, value):
 def euclidean_dist(k1, k2):  
     p1 = np.array(k1)
     p2 = np.array(k2)
-    dist = np.sqrt(np.dot(p1 - p2, p1 - p2))
+    sum_square = np.sum(np.dot(p1 - p2, p1 - p2))
+    dist = np.sqrt(sum_square)
     return dist
 
-#Метод Гаусса (НЕ ЗАКОНЧЕНО!!!)
+#Метод ГауссаДОДЕЛАТЬ!!!
 def gauss_method(N, A, B):
     n = N                       #Число неизвестных
     a = np.zeros((n, n + 1))    #Инициализация матрицы со значениями соседних образцов в словаре
+    #b = np.zeros((n, n + 1))    #Инициализация матрицы со значениями рассматриваемого образца
     x = np.zeros(n)             #Инициализация вектора решений
     cnt = 0
 
@@ -43,11 +58,9 @@ def gauss_method(N, A, B):
     for i in range(n):
         for j in range(n + 1):
             if j != n:
-                print("A: ", A[cnt])
                 a[i][j] = float(A[cnt])
                 cnt += 1
             else:
-                print("B: ", B[i])
                 a[i][n] = float(B[i])
 
     # # Applying Gauss Elimination
@@ -78,57 +91,66 @@ def gauss_method(N, A, B):
     #     print('X%d = %0.2f' %(i,x[i]), end = '\t')
     return a
 
-print("\nSuper-Resolution from a single image")
+print("Super-Resolution from a single image")
+slct = input("Выбрать изображение для обработки? [y - Да/n - Выйти]: ")
+if slct == 'n':
+    print("Вы вышли. Хорошего дня!")
+    sys.exit()
 
-print("Image openning...")
-img = cv.imread("lena.jpg", 0)  #0 для отображения черно-белого изображения
-height = img.shape[0]           #Высота оригинального изображения
-width = img.shape[1]            #Ширина оригинального изображения
+#Выбор файла с изображением
+Tk().withdraw()
+filename = askopenfilename()
 
-img2 = cv.resize(img, (int(width * 1/2), int(height * 1/2)))    #Уменьшение оригинального изображения в 2 раза
-img4 = cv.resize(img, (int(width * 1/4), int(height * 1/4)))    #Уменьшение оригинального изображения в 4 раза
-img8 = cv.resize(img, (int(width * 1/8), int(height * 1/8)))    #Уменьшение оригинального изображения в 8 раз
+#Если файл не выбран - завершаем программу
+while filename == '':
+    print('Файл изображения не выбран:(')
+    sys.exit()
 
-print("Dictionary building...")
-for i in range(int(height * 1/2) - 2):
-    for j in range(int(width * 1/2) - 2):
-        #Рассчет ключа словаря 3х3 
-        # key_3x3 = [0]*(key_size * key_size)
-        # ind333 = 0
-        # for m in range(key_size):
-        #     for n in range(key_size):
-        #         key_3x3[ind333] = img2[i + m, j + n]
-        #         ind333 += 1
-        # key_3x3 = tuple(key_3x3)
-        key_3x3 = dict_build(key_size, img2, i, j, 1)
+img = cv.imread(filename, 0)  #0 для отображения черно-белого изображения
+        #height = img.shape[0] -- Высота оригинального изображения
+        #width = img.shape[1] -- Ширина оригинального изображения
+print("Вы выбрали изображение: ", filename)
+print("Размер изображения: ", img.shape[1], "x", img.shape[0])
 
-        #Рассчет значения словаря 6х6
-        # value_6x6 = [0]*(val_size * val_size)
-        # ind = 0
-        # for m in range(val_size):
-        #     for n in range(val_size):
-        #         value_6x6[ind] = img[2 * i + m, 2 * j + n]
-        #         ind += 1
-        # value_6x6 = tuple(value_6x6)
-        value_6x6 = dict_build(val_size, img, i, j, 2)
+#Уменьшения оригинального изображения в 2, 4 и 8 раз
+img2 = cv.resize(img, (int(img.shape[1]  * 0.5), int(img.shape[0]  * 0.5)))
+img4 = cv.resize(img2, (int(img2.shape[1] * 0.5), int(img2.shape[0] * 0.5)))
+img8 = cv.resize(img4, (int(img4.shape[1] * 0.5), int(img4.shape[0] * 0.5)))
 
-        dct[key_3x3] = value_6x6    #Занесение в словарь
+#Результирующее изображение
+img_res = cv.resize(img, (int(img.shape[1]  * 2), int(img.shape[0]  * 2)))
 
-print("key_3x3 ", key_3x3)
-print("value_6x6 ", value_6x6)
+print("Сбор словаря...")
+#Сбор словаря между изображениями, масштаб которых отличается в 2 раза
+dict_build_two_scales(img2.shape[1], img2.shape[0], img, img2, key_size, val_size)
+dict_build_two_scales(img4.shape[1], img4.shape[0], img2, img4, key_size, val_size)
+dict_build_two_scales(img8.shape[1], img8.shape[0], img4, img8, key_size, val_size)
+print("Словарь размером ", len(dct)," значений готов.")
 
-dct['123'] = '123'
-arr2 = tuple(np.multiply(key_3x3, 2)) #Перевод в кортеж
-print(len(dct))
+#Проверка пикселей (реализация методом ближайшего соседа)
+sorted(dct)
+for i in range(img.shape[0] - 2):
+    for j in range(img.shape[1] - 2):
+        key_res = dict_build(key_size, img, i, j, 1)
+        val_res = dct.get(key_res)
+        if val_res == None:
+            for k, v in dct.items():
+                dst = euclidean_dist(key_res, k)
+                if dst < 1.5: #Предварительно берем образцы, у которых евклидово расстояние меньше 1.5
+                    print(key_res, k, i, j, dst)
+                    img_res[2 * i + 2, 2 * j + 2] = v[15]
+                    img_res[2 * i + 2, 2 * j + 3] = v[16]
+                    img_res[2 * i + 3, 2 * j + 2] = v[21]
+                    img_res[2 * i + 3, 2 * j + 3] = v[22]
+                    break
+        else:
+            img_res[2 * i + 2, 2 * j + 2] = val_res[15]
+            img_res[2 * i + 2, 2 * j + 3] = val_res[16]
+            img_res[2 * i + 3, 2 * j + 2] = val_res[21]
+            img_res[2 * i + 3, 2 * j + 3] = val_res[22]
 
-ddd = euclidean_dist((1, 2, 3), (4, 5, 6))
-print(ddd)
-kv = get_key(dct, 'key_6x6_2')
-print(kv)
-gm = gauss_method(3, key_3x3, arr2)
-print(gm)
-
-cv.imshow("LENA", img)
+cv.imshow("Result", img_res)
+#cv.imshow("Original", img)
 cv.waitKey(0)
 cv.destroyAllWindows()
-print("Image was closed!")
+print("Обработка изображения закончена!")
